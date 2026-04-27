@@ -3,7 +3,6 @@ import axios from "axios";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
 const TEMPLATE_ID = "1ViQYMPmpYOs4Xe1h6A9WKT3jARYX1oapWf0Ge44uVdk";
-const BACKEND_UPDATE_WAIT_SECONDS = 180;
 
 function resolveUrl(path) {
   if (!path) return null;
@@ -19,6 +18,9 @@ function resolveUrl(path) {
 }
 
 function getErrorMessage(err, fallback) {
+  if (err?.response?.status === 502) {
+    return "El backend sigue reiniciandose o actualizandose. Espera 1 o 2 minutos y vuelve a intentar.";
+  }
   return (
     err?.response?.data?.detail ||
     err?.response?.data?.message ||
@@ -27,11 +29,9 @@ function getErrorMessage(err, fallback) {
   );
 }
 
-function formatCountdown(totalSeconds) {
-  const safeSeconds = Math.max(0, totalSeconds || 0);
-  const minutes = Math.floor(safeSeconds / 60);
-  const seconds = safeSeconds % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+function extractCaseHintFromFilename(filename) {
+  const match = (filename || "").match(/(?:caso|radicado)[\s_-]*(\d{4,})/i);
+  return match ? match[1] : null;
 }
 
 export default function App() {
@@ -52,27 +52,36 @@ export default function App() {
   const [cedulaFiles, setCedulaFiles] = useState([]);
   const [docsFiles, setDocsFiles] = useState([]);
   const [feedbackFile, setFeedbackFile] = useState(null);
+  const [pickerVersion, setPickerVersion] = useState(0);
 
   const [comentario, setComentario] = useState("");
   const [status, setStatus] = useState({ state: "idle", msg: "" });
   const [result, setResult] = useState(null);
+  const [globalMaintenance, setGlobalMaintenance] = useState(null);
   const [uploadPct, setUploadPct] = useState(0);
   const [isUploadingFeedback, setIsUploadingFeedback] = useState(false);
   const [isRunningNext, setIsRunningNext] = useState(false);
-  const [backendUpdateUntil, setBackendUpdateUntil] = useState(null);
-  const [backendUpdateRemaining, setBackendUpdateRemaining] = useState(0);
-  const [skipRecommendedWait, setSkipRecommendedWait] = useState(false);
 
   const canSubmit = useMemo(() => docsFiles.length > 0, [docsFiles]);
   const feedbackUploaded = Boolean(result?.feedback?.uploaded);
   const canUploadFeedback = Boolean(result?.actions?.feedback_upload_url);
-  const waitRecommended = Boolean(
-    feedbackUploaded && backendUpdateRemaining > 0 && !skipRecommendedWait
+  const maintenance = result?.maintenance || null;
+  const maintenanceStatus = maintenance?.status || null;
+  const globalMaintenanceStatus = globalMaintenance?.status || null;
+  const globalMaintenancePending = Boolean(
+    ["queued", "running"].includes(globalMaintenanceStatus)
   );
+  const maintenancePending = Boolean(
+    feedbackUploaded && ["queued", "running"].includes(maintenanceStatus)
+  );
+  const maintenanceFailed = maintenanceStatus === "failed";
+  const maintenanceCompleted = maintenanceStatus === "completed";
+  const maintenanceSkipped = maintenanceStatus === "skipped";
+  const interactionLocked = maintenancePending || globalMaintenancePending;
   const canRunNextIteration = Boolean(
-    result?.actions?.next_iteration_url && feedbackUploaded && !waitRecommended
+    result?.actions?.next_iteration_url && feedbackUploaded && !interactionLocked
   );
-  const workflowMode = feedbackUploaded ? "learning" : result ? "drafted" : "start";
+  const workflowMode = interactionLocked ? "locked" : feedbackUploaded ? "learning" : result ? "drafted" : "start";
 
   useEffect(() => {
     if (status.state !== "loading") {
@@ -96,31 +105,90 @@ export default function App() {
   }, [status.state]);
 
   useEffect(() => {
-    if (!backendUpdateUntil) {
-      setBackendUpdateRemaining(0);
+    let cancelled = false;
+
+    const refreshGlobalMaintenance = async () => {
+      try {
+        const response = await axios.get(resolveUrl("/maintenance/backend"));
+        if (!cancelled) {
+          setGlobalMaintenance(response.data?.maintenance || null);
+        }
+      } catch (_err) {
+        if (!cancelled) {
+          setGlobalMaintenance(null);
+        }
+      }
+    };
+
+    refreshGlobalMaintenance();
+    const timer = setInterval(refreshGlobalMaintenance, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!result?.actions?.case_url || !maintenancePending) {
       return undefined;
     }
 
-    const refreshCountdown = () => {
-      const remaining = Math.max(
-        0,
-        Math.ceil((backendUpdateUntil - Date.now()) / 1000)
-      );
-      setBackendUpdateRemaining(remaining);
+    let cancelled = false;
+    const refreshCase = async () => {
+      try {
+        const response = await axios.get(resolveUrl(result.actions.case_url));
+        if (!cancelled) {
+          setResult(response.data);
+        }
+      } catch (_err) {
+        // While the backend is redeploying, transient errors are expected.
+      }
     };
 
-    refreshCountdown();
-    const timer = setInterval(refreshCountdown, 1000);
-    return () => clearInterval(timer);
-  }, [backendUpdateUntil]);
+    refreshCase();
+    const timer = setInterval(refreshCase, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [maintenancePending, result?.actions?.case_url]);
 
   useEffect(() => {
     if (!feedbackUploaded) {
-      setBackendUpdateUntil(null);
-      setBackendUpdateRemaining(0);
-      setSkipRecommendedWait(false);
+      return;
     }
-  }, [feedbackUploaded, result?.current_iteration]);
+    if (maintenancePending) {
+      setStatus({
+        state: "loading",
+        msg: maintenance?.message || "El backend se está actualizando con este feedback.",
+      });
+      return;
+    }
+    if (maintenanceCompleted) {
+      setStatus({
+        state: "success",
+        msg: maintenance?.message || "Backend actualizado. Ya puedes generar la siguiente iteración.",
+      });
+      return;
+    }
+    if (maintenanceSkipped) {
+      setStatus({
+        state: "success",
+        msg:
+          maintenance?.message ||
+          "No se aplicó un cambio global automático. Ya puedes generar la siguiente iteración para validar solo el feedback de este caso.",
+      });
+      return;
+    }
+    if (maintenanceFailed) {
+      setStatus({
+        state: "error",
+        msg:
+          maintenance?.message ||
+          "La actualización automática del backend falló. Puedes continuar, pero esta iteración ya no valida una mejora global aplicada.",
+      });
+    }
+  }, [feedbackUploaded, maintenance, maintenanceCompleted, maintenanceFailed, maintenancePending, maintenanceSkipped]);
 
   function onPickCedula(event) {
     setCedulaFiles(Array.from(event.target.files || []));
@@ -132,7 +200,30 @@ export default function App() {
 
   function onPickFeedback(event) {
     const file = event.target.files?.[0] || null;
+    const hintedCase = extractCaseHintFromFilename(file?.name || "");
+    if (file && result?.radicado && hintedCase && hintedCase !== String(result.radicado)) {
+      setFeedbackFile(null);
+      setStatus({
+        state: "error",
+        msg: `Ese Word revisado parece pertenecer al radicado ${hintedCase}, no al caso actual ${result.radicado}.`,
+      });
+      event.target.value = "";
+      return;
+    }
     setFeedbackFile(file);
+  }
+
+  function onResetCase() {
+    setCedulaFiles([]);
+    setDocsFiles([]);
+    setFeedbackFile(null);
+    setComentario("");
+    setStatus({ state: "idle", msg: "" });
+    setResult(null);
+    setUploadPct(0);
+    setLoadingStep(0);
+    setElapsedSec(0);
+    setPickerVersion((value) => value + 1);
   }
 
   function removeCedula(index) {
@@ -152,6 +243,15 @@ export default function App() {
 
     if (!canSubmit) {
       setStatus({ state: "error", msg: "Faltan documentos (mínimo 1)." });
+      return;
+    }
+    if (globalMaintenancePending) {
+      setStatus({
+        state: "error",
+        msg:
+          globalMaintenance?.message ||
+          "El backend está actualizándose con feedback experto. Espera a que termine antes de generar un nuevo caso.",
+      });
       return;
     }
 
@@ -196,6 +296,16 @@ export default function App() {
       });
       return;
     }
+    if (interactionLocked) {
+      setStatus({
+        state: "error",
+        msg:
+          maintenance?.message ||
+          globalMaintenance?.message ||
+          "El backend sigue actualizándose. Espera a que termine antes de enviar otro feedback.",
+      });
+      return;
+    }
 
     try {
       setIsUploadingFeedback(true);
@@ -207,15 +317,11 @@ export default function App() {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      const waitUntil = Date.now() + BACKEND_UPDATE_WAIT_SECONDS * 1000;
-      setBackendUpdateUntil(waitUntil);
-      setBackendUpdateRemaining(BACKEND_UPDATE_WAIT_SECONDS);
-      setSkipRecommendedWait(false);
       setResult(response.data);
       setFeedbackFile(null);
       setStatus({
-        state: "success",
-        msg: "Feedback cargado. Codex está actualizando el backend con esta revisión; espera unos minutos antes de generar la siguiente iteración.",
+        state: "loading",
+        msg: "Feedback cargado. Codex está actualizando el backend con esta revisión; esta pantalla se desbloqueará automáticamente cuando termine.",
       });
     } catch (err) {
       setStatus({
@@ -231,7 +337,10 @@ export default function App() {
     if (!canRunNextIteration) {
       setStatus({
         state: "error",
-        msg: "Sube y envía primero el feedback del Word revisado.",
+        msg:
+          maintenancePending || globalMaintenancePending
+            ? "El backend todavía se está actualizando. La siguiente iteración se desbloqueará cuando termine."
+            : "Sube y envía primero el feedback del Word revisado.",
       });
       return;
     }
@@ -244,9 +353,6 @@ export default function App() {
       const response = await axios.post(resolveUrl(result.actions.next_iteration_url));
       setResult(response.data);
       setFeedbackFile(null);
-      setBackendUpdateUntil(null);
-      setBackendUpdateRemaining(0);
-      setSkipRecommendedWait(false);
       setStatus({
         state: "success",
         msg: `Iteración ${response.data.current_iteration} generada.`,
@@ -263,13 +369,25 @@ export default function App() {
 
   const docxUrl = resolveUrl(result?.artifacts?.docx_url);
   const pdfUrl = resolveUrl(result?.artifacts?.pdf_url);
-  const learningBannerText = waitRecommended
-    ? `El backend se está actualizando con este feedback. Espera ${formatCountdown(
-        backendUpdateRemaining
-      )} antes de generar la siguiente iteración para probar una mejora del sistema.`
-    : feedbackUploaded
-      ? "La espera recomendada terminó. Ya puedes generar la siguiente iteración para comprobar si la mejora del sistema quedó aplicada."
-      : "Si este borrador ya sirve, puedes descargarlo y seguir. Si quieres ayudar a mejorar el sistema, sube el Word revisado con comentarios.";
+  const changeReportUrl = resolveUrl(result?.artifacts?.change_report_url);
+  const learningBannerTone = maintenancePending ? "pending" : "ready";
+  const learningBannerText = maintenancePending
+    ? maintenance?.message ||
+      "El backend se está actualizando con este feedback. La siguiente iteración se habilitará cuando termine."
+    : maintenanceCompleted
+      ? "La actualización del backend terminó. Ya puedes generar la siguiente iteración para probar si la mejora global quedó aplicada."
+      : maintenanceSkipped
+        ? maintenance?.message ||
+          "No se aplicó un cambio global automático. Ya puedes generar la siguiente iteración para validar solo este caso."
+      : maintenanceFailed
+        ? `${maintenance?.message || "La actualización automática del backend falló."} Puedes continuar con la siguiente iteración, pero ya no estarás validando una mejora global aplicada con éxito.`
+        : feedbackUploaded
+          ? "El feedback ya quedó registrado. Usa Generar siguiente iteración para continuar este mismo caso."
+          : "Si este borrador ya sirve, puedes descargarlo y seguir. Si quieres ayudar a mejorar el sistema, sube el Word revisado con comentarios.";
+  const globalBannerText = globalMaintenancePending
+    ? globalMaintenance?.message ||
+      "El backend se está actualizando con feedback experto. Toda la interfaz queda bloqueada hasta que termine."
+    : null;
 
   return (
     <div className="page">
@@ -283,7 +401,9 @@ export default function App() {
               <div className="guideTitle">Prueba rápida o mejora del sistema</div>
             </div>
             <div className={`guideBadge ${workflowMode}`}>
-              {workflowMode === "learning"
+              {workflowMode === "locked"
+                ? "Backend actualizándose"
+                : workflowMode === "learning"
                 ? "Aprendiendo del feedback"
                 : workflowMode === "drafted"
                   ? "Borrador listo"
@@ -306,21 +426,30 @@ export default function App() {
               <ol className="guideList">
                 <li>Genera un nuevo borrador.</li>
                 <li>Sube el Word revisado con comentarios.</li>
-                <li>Espera unos minutos mientras el backend se actualiza.</li>
+                <li>Espera a que el backend termine de actualizarse.</li>
                 <li>Genera la siguiente iteración para probar la mejora.</li>
               </ol>
             </div>
           </div>
         </div>
 
+        {globalBannerText && !maintenancePending && (
+          <div className="learningBanner pending">
+            <div className="learningBannerTitle">Backend actualizándose</div>
+            <div className="learningBannerText">{globalBannerText}</div>
+          </div>
+        )}
+
         <div className="pickerGrid">
           <label className="bigPicker">
             <input
+              key={`cedula-${pickerVersion}`}
               className="hiddenInput"
               type="file"
               multiple
               accept=".pdf,image/*"
               onChange={onPickCedula}
+              disabled={interactionLocked}
             />
             <div className="bigPickerInner">
               <div className="bigPickerText">Escaneos</div>
@@ -334,11 +463,13 @@ export default function App() {
 
           <label className="bigPicker">
             <input
+              key={`docs-${pickerVersion}`}
               className="hiddenInput"
               type="file"
               multiple
               accept=".pdf,image/*"
               onChange={onPickDocs}
+              disabled={interactionLocked}
             />
             <div className="bigPickerInner">
               <div className="bigPickerText">Documentos</div>
@@ -362,6 +493,7 @@ export default function App() {
                     className="linkBtn"
                     type="button"
                     onClick={() => removeCedula(idx)}
+                    disabled={interactionLocked}
                   >
                     Quitar
                   </button>
@@ -382,6 +514,7 @@ export default function App() {
                     className="linkBtn"
                     type="button"
                     onClick={() => removeDoc(idx)}
+                    disabled={interactionLocked}
                   >
                     Quitar
                   </button>
@@ -398,16 +531,23 @@ export default function App() {
             value={comentario}
             onChange={(event) => setComentario(event.target.value)}
             placeholder="Ej: El cliente solicita entrega inmediata."
+            disabled={interactionLocked}
           />
         </div>
 
-        <button
-          className="primaryBtn"
-          disabled={!canSubmit || status.state === "loading"}
-          onClick={onSubmit}
-        >
-          {status.state === "loading" ? "Procesando..." : "Generar"}
-        </button>
+        {!result && (
+          <button
+            className="primaryBtn"
+            disabled={!canSubmit || status.state === "loading" || interactionLocked}
+            onClick={onSubmit}
+          >
+            {status.state === "loading"
+              ? "Procesando..."
+              : interactionLocked
+                ? "Backend actualizándose"
+                : "Generar"}
+          </button>
+        )}
 
         {status.state === "loading" && (
           <>
@@ -456,32 +596,31 @@ export default function App() {
             </div>
           </div>
 
-          <div className={`learningBanner ${waitRecommended ? "pending" : "ready"}`}>
+          <div className={`learningBanner ${learningBannerTone}`}>
             <div className="learningBannerTitle">
-              {waitRecommended
+              {maintenancePending
                 ? "Backend actualizándose"
-                : feedbackUploaded
-                  ? "Backend listo para reintentar"
+                : maintenanceCompleted
+                  ? "Backend actualizado"
+                  : maintenanceFailed
+                    ? "Actualización automática fallida"
+                    : feedbackUploaded
+                      ? "Feedback registrado"
                   : "Siguiente decisión"}
             </div>
             <div className="learningBannerText">{learningBannerText}</div>
-            {waitRecommended && (
-              <div className="countdownRow">
-                <span className="countdownPill">
-                  Espera recomendada: {formatCountdown(backendUpdateRemaining)}
-                </span>
-                <button
-                  className="secondaryBtn inlineBtn"
-                  type="button"
-                  onClick={() => setSkipRecommendedWait(true)}
-                >
-                  Generar ahora de todos modos
-                </button>
-              </div>
-            )}
           </div>
 
             <div className="actionGrid">
+              <button
+                className="secondaryBtn"
+                type="button"
+                onClick={onResetCase}
+                disabled={interactionLocked || isUploadingFeedback || isRunningNext}
+              >
+                Empezar otro caso
+              </button>
+
               {docxUrl && (
                 <a className="downloadBtn" href={docxUrl} target="_blank" rel="noreferrer">
                   Descargar Word
@@ -494,13 +633,20 @@ export default function App() {
                 </a>
               )}
 
+              {changeReportUrl && (
+                <a className="downloadBtn" href={changeReportUrl} target="_blank" rel="noreferrer">
+                  Descargar reporte de cambios
+                </a>
+              )}
+
               <label className="secondaryBtn">
                 <input
+                  key={`feedback-${pickerVersion}`}
                   className="hiddenInput"
                   type="file"
                   accept=".docx"
                   onChange={onPickFeedback}
-                  disabled={!canUploadFeedback || isUploadingFeedback || isRunningNext}
+                  disabled={!canUploadFeedback || isUploadingFeedback || isRunningNext || interactionLocked}
                 />
                 Seleccionar Word revisado
               </label>
@@ -508,7 +654,7 @@ export default function App() {
               <button
                 className="secondaryBtn"
                 type="button"
-                disabled={!feedbackFile || isUploadingFeedback || isRunningNext}
+                disabled={!feedbackFile || isUploadingFeedback || isRunningNext || interactionLocked}
                 onClick={onUploadFeedback}
               >
                 {isUploadingFeedback ? "Enviando..." : "Enviar feedback"}
@@ -522,8 +668,8 @@ export default function App() {
               >
                 {isRunningNext
                   ? "Iterando..."
-                  : waitRecommended
-                    ? `Disponible en ${formatCountdown(backendUpdateRemaining)}`
+                  : interactionLocked
+                    ? "Esperando actualización del backend"
                     : "Generar siguiente iteración"}
               </button>
             </div>
@@ -532,7 +678,9 @@ export default function App() {
               {feedbackFile
                 ? `Word revisado seleccionado: ${feedbackFile.name}`
                 : feedbackUploaded
-                  ? "El feedback ya fue enviado. Espera unos minutos y luego genera la siguiente iteración."
+                  ? maintenancePending
+                    ? "El feedback ya fue enviado. La siguiente iteración queda bloqueada hasta que termine la actualización automática del backend."
+                    : "El feedback ya fue enviado. Usa Generar siguiente iteración; no uses Generar para este mismo caso."
                   : "Selecciona el Word revisado con comentarios para activar la mejora del sistema."}
             </div>
 
