@@ -4,39 +4,6 @@ import axios from "axios";
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
 const TEMPLATE_ID = "1ViQYMPmpYOs4Xe1h6A9WKT3jARYX1oapWf0Ge44uVdk";
 
-const GENERATION_MESSAGES = [
-  "Subiendo archivos…",
-  "Analizando radicación…",
-  "Leyendo soportes…",
-  "Extrayendo datos de cédulas…",
-  "Generando minuta…",
-  "Armando escritura acto por acto…",
-  "Exportando a PDF…",
-  "Casi listo…",
-] as const;
-
-const MAINTENANCE_MESSAGES = [
-  "Leyendo comentarios del Word revisado…",
-  "Codex detectando patrones corregibles…",
-  "Aplicando un ajuste pequeño y seguro al backend…",
-  "Ejecutando la verificación mínima relevante…",
-  "Esperando confirmación final del despliegue…",
-] as const;
-
-const FEEDBACK_MESSAGES = [
-  "Subiendo el Word revisado…",
-  "Leyendo comentarios del documento…",
-  "Asociando el feedback al radicado activo…",
-] as const;
-
-const ITERATION_MESSAGES = [
-  "Releyendo los insumos del caso…",
-  "Aplicando el feedback al borrador…",
-  "Regenerando la minuta…",
-  "Rearmando la escritura…",
-  "Preparando Word, PDF y reporte de cambios…",
-] as const;
-
 type StatusMode = "idle" | "generation" | "feedback" | "maintenance" | "iteration";
 type StatusState = "idle" | "loading" | "success" | "error";
 type WorkflowMode =
@@ -212,7 +179,7 @@ function describeIteration(iteration: number): string {
   if (iteration <= 1) {
     return "Esta es la primera versión de este radicado.";
   }
-  return `Ves Iteración ${iteration} porque este mismo radicado ya fue regenerado ${iteration - 1} vez/veces antes. Si quieres medir desde cero, usa Empezar otro caso.`;
+  return `Esta es la iteración ${iteration} del mismo radicado. Usa Empezar otro caso si quieres reiniciar la prueba desde cero.`;
 }
 
 function getWorkflowMode(params: {
@@ -221,8 +188,8 @@ function getWorkflowMode(params: {
   maintenanceSkipped: boolean;
   maintenanceFailed: boolean;
   feedbackUploaded: boolean;
-  currentIteration: number;
   hasResult: boolean;
+  resultStatus?: string;
 }): WorkflowMode {
   const {
     interactionLocked,
@@ -230,16 +197,16 @@ function getWorkflowMode(params: {
     maintenanceSkipped,
     maintenanceFailed,
     feedbackUploaded,
-    currentIteration,
     hasResult,
+    resultStatus,
   } = params;
 
   if (interactionLocked) return "locked";
+  if (maintenanceFailed) return "attention";
   if (maintenanceCompleted) return "validation";
   if (maintenanceSkipped) return "iterating";
-  if (maintenanceFailed) return "attention";
   if (feedbackUploaded) return "feedback";
-  if (currentIteration > 1) return "validation";
+  if (resultStatus === "generated") return "drafted";
   if (hasResult) return "drafted";
   return "start";
 }
@@ -255,36 +222,74 @@ function getWorkflowBadge(mode: WorkflowMode): string {
     case "attention":
       return "Revisión manual";
     case "feedback":
-      return "Feedback registrado";
+      return "Feedback cargado";
     case "drafted":
       return "Borrador listo";
     default:
-      return "Listo para comenzar";
+      return "Preparar caso";
   }
 }
 
-function getLoadingConfig(mode: StatusMode): { label: string; messages: readonly string[] } {
+function getLoadingConfig(
+  mode: StatusMode,
+  uploadPct: number,
+): { label: string; detail: string } {
   switch (mode) {
     case "feedback":
       return {
         label: "Registrando feedback",
-        messages: FEEDBACK_MESSAGES,
+        detail: "Leyendo y asociando el Word revisado al radicado actual.",
       };
     case "maintenance":
       return {
-        label: "Mejora del sistema en curso",
-        messages: MAINTENANCE_MESSAGES,
+        label: "Actualizando backend",
+        detail: "Codex está intentando aplicar una mejora global del sistema.",
       };
     case "iteration":
       return {
-        label: "Generando nueva iteración",
-        messages: ITERATION_MESSAGES,
+        label: "Generando iteración",
+        detail: "Se está regenerando este mismo caso para validar el resultado.",
       };
     default:
       return {
         label: "Generando borrador",
-        messages: GENERATION_MESSAGES,
+        detail:
+          uploadPct > 0 && uploadPct < 100
+            ? "Subiendo archivos del caso…"
+            : "Procesando documentos y plantilla del caso.",
       };
+  }
+}
+
+function getMaintenanceDisplay(status: string | null): BannerInfo | null {
+  switch (status) {
+    case "queued":
+    case "running":
+      return {
+        tone: "pending",
+        title: "Backend actualizándose",
+        text: "Codex está intentando aplicar una mejora global del sistema con este feedback.",
+      };
+    case "completed":
+      return {
+        tone: "ready",
+        title: "Backend actualizado",
+        text: "La mejora global quedó aplicada. Ahora puedes generar la siguiente iteración.",
+      };
+    case "skipped":
+      return {
+        tone: "neutral",
+        title: "Sin cambio global",
+        text: "Con este feedback no se aplicó una mejora global. Puedes seguir validando el mismo caso.",
+      };
+    case "failed":
+      return {
+        tone: "danger",
+        title: "Actualización no completada",
+        text: "La actualización automática no se completó. Puedes reintentar con otro feedback o seguir con el caso.",
+      };
+    default:
+      return null;
   }
 }
 
@@ -307,75 +312,38 @@ function getResultBanner(params: {
     currentIteration,
   } = params;
 
-  if (maintenancePending) {
-    return {
-      tone: "pending",
-      title: "Mejora del sistema en curso",
-      text:
-        maintenance?.message ||
-        "El backend se está actualizando con este feedback. La interfaz permanecerá bloqueada hasta que termine.",
-    };
-  }
-  if (maintenanceCompleted) {
-    return {
-      tone: "ready",
-      title: "Backend actualizado",
-      text:
-        maintenance?.message ||
-        "La mejora global del backend terminó. Ahora sí puedes generar la siguiente iteración para validar el cambio.",
-    };
-  }
-  if (maintenanceSkipped) {
-    return {
-      tone: "neutral",
-      title: "Sin mejora global aplicada",
-      text:
-        maintenance?.message ||
-        "Para este feedback no se aplicó un cambio global del backend. La siguiente iteración solo probará el mismo caso.",
-    };
-  }
-  if (maintenanceFailed) {
-    return {
-      tone: "danger",
-      title: "Actualización automática fallida",
-      text:
-        maintenance?.message ||
-        "La actualización automática falló. Puedes continuar con el caso, pero ya no estarías validando una mejora global aplicada con éxito.",
-    };
+  const maintenanceDisplay = getMaintenanceDisplay(maintenance?.status || null);
+  if (maintenanceDisplay && (maintenancePending || maintenanceCompleted || maintenanceSkipped || maintenanceFailed)) {
+    return maintenanceDisplay;
   }
   if (feedbackUploaded) {
     return {
       tone: "neutral",
       title: "Feedback registrado",
-      text:
-        "El Word revisado ya quedó asociado a este caso. Cuando corresponda, usa Generar nueva iteración para seguir probando el mismo radicado.",
+      text: "El Word revisado ya quedó asociado a este caso. Cuando se habilite, genera otra iteración.",
     };
   }
   if (currentIteration > 1) {
     return {
       tone: "ready",
-      title: "Iteración lista para validar",
-      text:
-        "Esta versión ya refleja un nuevo intento sobre el mismo radicado. Compárala con el Word anterior y descarga el reporte de cambios para verificar la diferencia.",
+      title: "Nueva iteración lista",
+      text: "Esta versión ya refleja un nuevo intento del mismo radicado. Compárala con la anterior y descarga el reporte de cambios.",
     };
   }
   return {
     tone: "ready",
     title: "Borrador listo",
-    text:
-      "Si este borrador ya sirve, descarga Word o PDF y continúa. Si quieres mejorar el sistema, sube el Word revisado con comentarios.",
+    text: "Descarga Word o PDF si ya está bien. Si quieres mejorar el sistema, sube el Word revisado con comentarios.",
   };
 }
 
 function LoadingCard(props: {
   mode: StatusMode;
   elapsedSec: number;
-  loadingStep: number;
   uploadPct: number;
 }) {
-  const { mode, elapsedSec, loadingStep, uploadPct } = props;
-  const { label, messages } = getLoadingConfig(mode);
-  const currentMessage = messages[loadingStep % messages.length];
+  const { mode, elapsedSec, uploadPct } = props;
+  const { label, detail } = getLoadingConfig(mode, uploadPct);
   const showUploadProgress = mode === "generation" && uploadPct > 0 && uploadPct < 100;
 
   return (
@@ -394,8 +362,8 @@ function LoadingCard(props: {
       <div className="spinnerWrap">
         <div className="spinner" />
         <div className="spinnerCopy">
-          <div className="spinnerText">{currentMessage}</div>
-          <div className="spinnerMeta">{elapsedSec}s transcurridos</div>
+          <div className="spinnerText">{detail}</div>
+          <div className="spinnerMeta">{formatDuration(elapsedSec)} transcurridos</div>
         </div>
       </div>
     </div>
@@ -403,7 +371,6 @@ function LoadingCard(props: {
 }
 
 export default function App() {
-  const [loadingStep, setLoadingStep] = useState(0);
   const [elapsedSec, setElapsedSec] = useState(0);
 
   const [cedulaFiles, setCedulaFiles] = useState<File[]>([]);
@@ -422,15 +389,7 @@ export default function App() {
   const [uploadPct, setUploadPct] = useState(0);
   const [isUploadingFeedback, setIsUploadingFeedback] = useState(false);
   const [isRunningNext, setIsRunningNext] = useState(false);
-  const [eventLog, setEventLog] = useState<EventLogEntry[]>([
-    {
-      id: createEventId(),
-      at: formatClock(),
-      title: "Interfaz lista",
-      detail: "Sube documentos para generar un borrador o continuar con un caso existente.",
-      tone: "info",
-    },
-  ]);
+  const [eventLog, setEventLog] = useState<EventLogEntry[]>([]);
 
   const lastStatusKeyRef = useRef("");
   const lastMaintenanceKeyRef = useRef("");
@@ -462,8 +421,8 @@ export default function App() {
     maintenanceSkipped,
     maintenanceFailed,
     feedbackUploaded,
-    currentIteration,
     hasResult: Boolean(result),
+    resultStatus: result?.status,
   });
   const resultBanner = getResultBanner({
     maintenancePending,
@@ -487,40 +446,33 @@ export default function App() {
   const docxUrl = resolveUrl(result?.artifacts?.docx_url);
   const pdfUrl = resolveUrl(result?.artifacts?.pdf_url);
   const changeReportUrl = resolveUrl(result?.artifacts?.change_report_url);
-  const globalBannerText = globalMaintenancePending
-    ? globalMaintenance?.message ||
-      "El backend se está actualizando con feedback experto. Toda la interfaz queda bloqueada hasta que termine."
-    : null;
   const activePhase = useMemo<ActivePhaseInfo | null>(() => {
     if (status.state === "loading") {
       if (status.mode === "generation") {
         return {
           label: "Borrador",
-          detail: "Se está armando el borrador inicial de este caso.",
+          detail: "Se está generando el borrador inicial del caso.",
           tone: "draft",
         };
       }
       if (status.mode === "feedback") {
         return {
           label: "Feedback",
-          detail: "Se está leyendo y registrando el Word revisado de este mismo caso.",
+          detail: "Se está registrando el Word revisado de este caso.",
           tone: "feedback",
         };
       }
       if (status.mode === "maintenance") {
         return {
           label: "Backend",
-          detail:
-            maintenance?.message ||
-            globalMaintenance?.message ||
-            "OpenClaw y Codex están evaluando y aplicando una mejora global del backend.",
+          detail: "Codex está intentando aplicar una mejora global del backend.",
           tone: "backend",
         };
       }
       if (status.mode === "iteration") {
         return {
           label: "Validación",
-          detail: "Se está generando una nueva iteración para validar la mejora aplicada.",
+          detail: "Se está generando una nueva iteración para validar el resultado.",
           tone: "validation",
         };
       }
@@ -529,9 +481,7 @@ export default function App() {
     if (globalMaintenancePending) {
       return {
         label: "Backend",
-        detail:
-          globalMaintenance?.message ||
-          "Hay una actualización global del backend en curso. La interfaz seguirá bloqueada hasta que termine.",
+        detail: "Hay una actualización global del backend en curso. La interfaz sigue bloqueada hasta que termine.",
         tone: "backend",
       };
     }
@@ -555,33 +505,27 @@ export default function App() {
         tone,
       },
       ...current,
-    ].slice(0, 14));
+    ].slice(0, 4));
   }
 
   useEffect(() => {
     if (status.state !== "loading") {
-      setLoadingStep(0);
       setElapsedSec(0);
       return;
     }
 
-    const { messages } = getLoadingConfig(status.mode);
     const startedAt = Date.now();
-    const msgTimer = window.setInterval(() => {
-      setLoadingStep((step) => (step + 1) % messages.length);
-    }, 2500);
     const secTimer = window.setInterval(() => {
       setElapsedSec(Math.floor((Date.now() - startedAt) / 1000));
     }, 1000);
 
     return () => {
-      window.clearInterval(msgTimer);
       window.clearInterval(secTimer);
     };
   }, [status.mode, status.state]);
 
   useEffect(() => {
-    if (!status.msg) return;
+    if (!status.msg || status.state === "loading") return;
     const key = `${status.state}|${status.mode}|${status.msg}`;
     if (key === lastStatusKeyRef.current) return;
     lastStatusKeyRef.current = key;
@@ -605,19 +549,20 @@ export default function App() {
 
   useEffect(() => {
     const key = globalMaintenance
-      ? `${globalMaintenance.status}|${globalMaintenance.radicado}|${globalMaintenance.iteration}|${globalMaintenance.message}`
+      ? `${globalMaintenance.status}|${globalMaintenance.radicado}|${globalMaintenance.iteration}`
       : "none";
     if (key === lastMaintenanceKeyRef.current) return;
     lastMaintenanceKeyRef.current = key;
 
     if (!globalMaintenance) {
-      appendLog("Mantenimiento global", "No hay una actualización global del backend en curso.", "info");
       return;
     }
 
+    const display = getMaintenanceDisplay(globalMaintenance.status);
+    if (!display) return;
     appendLog(
-      "Mantenimiento global",
-      `Estado ${globalMaintenance.status} para el radicado ${globalMaintenance.radicado || "sin radicado"}${globalMaintenance.iteration ? ` en iteración ${globalMaintenance.iteration}` : ""}. ${globalMaintenance.message || ""}`.trim(),
+      display.title,
+      display.text,
       globalMaintenance.status === "failed"
         ? "error"
         : globalMaintenance.status === "completed"
@@ -634,8 +579,8 @@ export default function App() {
     if (key === lastIterationKeyRef.current) return;
     lastIterationKeyRef.current = key;
     appendLog(
-      "Caso activo",
-      `Radicado ${result.radicado} en iteración ${result.current_iteration} con estado ${result.status}.`,
+      "Caso actualizado",
+      `Radicado ${result.radicado} en iteración ${result.current_iteration}.`,
       "info",
     );
   }, [result]);
@@ -693,44 +638,44 @@ export default function App() {
     if (!feedbackUploaded) return;
 
     if (maintenancePending) {
+      const display = getMaintenanceDisplay(maintenance?.status || null);
       setStatus({
         state: "loading",
         mode: "maintenance",
-        msg:
-          maintenance?.message ||
-          "El backend se está actualizando con este feedback.",
+        msg: display?.text || "El backend se está actualizando con este feedback.",
       });
       return;
     }
 
     if (maintenanceCompleted) {
+      const display = getMaintenanceDisplay(maintenance?.status || null);
       setStatus({
         state: "success",
         mode: "idle",
-        msg:
-          maintenance?.message ||
-          "Backend actualizado. Ya puedes generar la siguiente iteración.",
+        msg: display?.text || "Backend actualizado. Ya puedes generar la siguiente iteración.",
       });
       return;
     }
 
     if (maintenanceSkipped) {
+      const display = getMaintenanceDisplay(maintenance?.status || null);
       setStatus({
         state: "success",
         mode: "idle",
         msg:
-          maintenance?.message ||
+          display?.text ||
           "No se aplicó un cambio global automático. Ya puedes generar la siguiente iteración para validar solo este caso.",
       });
       return;
     }
 
     if (maintenanceFailed) {
+      const display = getMaintenanceDisplay(maintenance?.status || null);
       setStatus({
         state: "error",
         mode: "idle",
         msg:
-          maintenance?.message ||
+          display?.text ||
           "La actualización automática del backend falló. Puedes continuar, pero esta iteración ya no valida una mejora global aplicada.",
       });
     }
@@ -775,10 +720,9 @@ export default function App() {
     setStatus({ state: "idle", msg: "", mode: "idle" });
     setResult(null);
     setUploadPct(0);
-    setLoadingStep(0);
     setElapsedSec(0);
     setPickerVersion((value) => value + 1);
-    appendLog("Nuevo caso", "Se limpió el radicado actual para comenzar desde cero.", "info");
+    setEventLog([]);
   }
 
   function removeCedula(index: number) {
@@ -793,7 +737,6 @@ export default function App() {
     setResult(null);
     setFeedbackFile(null);
     setUploadPct(0);
-    setLoadingStep(0);
     setElapsedSec(0);
 
     if (!canSubmit) {
@@ -820,7 +763,7 @@ export default function App() {
       setStatus({
         state: "loading",
         mode: "generation",
-        msg: "Generando primera iteración…",
+        msg: "Generando borrador…",
       });
 
       const form = new FormData();
@@ -843,7 +786,7 @@ export default function App() {
       setStatus({
         state: "success",
         mode: "idle",
-        msg: "Primera iteración generada.",
+        msg: "Borrador generado.",
       });
     } catch (err) {
       setStatus({
@@ -881,7 +824,7 @@ export default function App() {
       setStatus({
         state: "loading",
         mode: "feedback",
-        msg: "Registrando el Word revisado para este radicado…",
+        msg: "Registrando feedback…",
       });
 
       const form = new FormData();
@@ -898,8 +841,7 @@ export default function App() {
       setStatus({
         state: "loading",
         mode: "maintenance",
-        msg:
-          "Feedback cargado. Codex está actualizando el backend con esta revisión; la interfaz se desbloqueará automáticamente cuando termine.",
+        msg: "Feedback cargado. La interfaz quedará bloqueada hasta terminar la actualización.",
       });
     } catch (err) {
       setStatus({
@@ -965,29 +907,20 @@ export default function App() {
           <div className="guideHeader">
             <div>
               <div className="guideEyebrow">Modo de uso</div>
-              <div className="guideTitle">Prueba rápida o mejora del sistema</div>
+              <div className="guideTitle">Uso rápido o mejora del sistema</div>
             </div>
             <div className={`guideBadge ${workflowMode}`}>{getWorkflowBadge(workflowMode)}</div>
           </div>
 
           <div className="guideGrid">
             <div className="guideCard">
-              <div className="guideCardTitle">Uso rápido</div>
-              <ol className="guideList">
-                <li>Sube escaneos y documentos.</li>
-                <li>Genera un nuevo borrador.</li>
-                <li>Descarga Word o PDF y sigue trabajando si ya quedó bien.</li>
-              </ol>
+              <div className="guideCardTitle">Sin feedback</div>
+              <div className="guideText">Genera el borrador y descarga Word o PDF si ya quedó bien.</div>
             </div>
 
             <div className="guideCard accent">
-              <div className="guideCardTitle">Mejora del sistema</div>
-              <ol className="guideList">
-                <li>Genera un nuevo borrador.</li>
-                <li>Sube el Word revisado con comentarios del mismo caso.</li>
-                <li>Espera a que el backend termine de actualizarse.</li>
-                <li>Genera una nueva iteración para validar la mejora.</li>
-              </ol>
+              <div className="guideCardTitle">Con feedback</div>
+              <div className="guideText">Sube el Word revisado, espera el backend y luego genera otra iteración.</div>
             </div>
           </div>
         </div>
@@ -1002,13 +935,6 @@ export default function App() {
 
         <div className="workspaceGrid">
           <section className="workspaceColumn inputColumn">
-            {globalBannerText && !maintenancePending && (
-              <div className="learningBanner pending">
-                <div className="learningBannerTitle">Backend actualizándose</div>
-                <div className="learningBannerText">{globalBannerText}</div>
-              </div>
-            )}
-
             <div className="pickerGrid">
               <label className="bigPicker">
                 <input
@@ -1124,7 +1050,6 @@ export default function App() {
               <LoadingCard
                 mode={status.mode}
                 elapsedSec={liveElapsedSec}
-                loadingStep={loadingStep}
                 uploadPct={uploadPct}
               />
             )}
@@ -1133,17 +1058,11 @@ export default function App() {
               <div className={`status ${status.state}`}>{status.msg}</div>
             )}
 
-            <div className="hint">
-              <div>
-                <b>Requisito para enviar:</b> al menos 1 documento base
+            {!result && (
+              <div className="hint">
+                <b>Requisito:</b> sube al menos 1 documento base para generar el borrador.
               </div>
-              <div className="small">
-                Endpoint: <code>{API_BASE}/notaria-v63-universal</code>
-              </div>
-              <div className="small">
-                template_id fijo: <code>{TEMPLATE_ID}</code>
-              </div>
-            </div>
+            )}
           </section>
 
           <section className="workspaceColumn resultColumn">
@@ -1181,22 +1100,12 @@ export default function App() {
                             : "Pendiente"}
                         </span>
                       </div>
-                      <div className="metaItem">
-                        <span className="metaLabel">Proceso activo</span>
-                        <span className="metaValue">
-                          {interactionLocked
-                            ? "Backend"
-                            : status.mode === "iteration"
-                              ? "Validación"
-                              : currentIteration > 1
-                                ? "Iteración"
-                                : "Borrador"}
-                        </span>
-                      </div>
-                      <div className="metaItem">
-                        <span className="metaLabel">Tiempo en fase</span>
-                        <span className="metaValue">{formatDuration(liveElapsedSec)}</span>
-                      </div>
+                      {(interactionLocked || status.state === "loading") && (
+                        <div className="metaItem">
+                          <span className="metaLabel">Tiempo</span>
+                          <span className="metaValue">{formatDuration(liveElapsedSec)}</span>
+                        </div>
+                      )}
                     </div>
 
                     <div className={`learningBanner ${resultBanner.tone}`}>
@@ -1204,8 +1113,8 @@ export default function App() {
                       <div className="learningBannerText">{resultBanner.text}</div>
                     </div>
 
-                    <div className="historyBox">
-                      <div className="historyTitle">Historial del radicado</div>
+                    <details className="historyBox">
+                      <summary className="historyTitle">Historial de iteraciones</summary>
                       <div className="historyList">
                         {result.iterations.map((item) => (
                           <div
@@ -1220,16 +1129,10 @@ export default function App() {
                                   ? `${item.comments_count} comentario(s)`
                                   : "Sin feedback"}
                               </span>
-                              <span>{item.maintenance_status || "sin maintenance"}</span>
                             </div>
                           </div>
                         ))}
                       </div>
-                    </div>
-
-                    <details className="debugBox">
-                      <summary>Detalle técnico del caso</summary>
-                      <pre className="pre">{JSON.stringify(result, null, 2)}</pre>
                     </details>
                   </div>
 
@@ -1259,12 +1162,12 @@ export default function App() {
                       <div className="actionPanelTitle">Mejora del sistema</div>
                       <div className="feedbackFileName">
                         {feedbackFile
-                          ? `Word revisado seleccionado: ${feedbackFile.name}`
+                          ? `Archivo seleccionado: ${feedbackFile.name}`
                           : feedbackUploaded
                             ? maintenancePending
-                              ? "El feedback ya fue enviado. Todo queda bloqueado hasta que termine la actualización automática del backend."
-                              : "El feedback ya fue enviado. Usa Generar nueva iteración para seguir probando este mismo radicado."
-                            : "Selecciona el Word revisado con comentarios del mismo caso para activar la mejora del sistema."}
+                              ? "Feedback enviado. Esperando que termine la actualización del backend."
+                              : "Feedback cargado. Cuando quieras, genera otra iteración."
+                            : "Selecciona el Word revisado de este mismo caso."}
                       </div>
 
                       <div className="actionGrid compact">
@@ -1277,7 +1180,7 @@ export default function App() {
                             onChange={onPickFeedback}
                             disabled={!canUploadFeedback || isUploadingFeedback || isRunningNext || interactionLocked}
                           />
-                          Elegir Word revisado
+                          Elegir Word
                         </label>
 
                         <button
@@ -1286,7 +1189,7 @@ export default function App() {
                           disabled={!feedbackFile || isUploadingFeedback || isRunningNext || interactionLocked}
                           onClick={onUploadFeedback}
                         >
-                          {isUploadingFeedback ? "Enviando..." : "Enviar revisión"}
+                          {isUploadingFeedback ? "Enviando..." : "Enviar feedback"}
                         </button>
 
                         <button
@@ -1299,25 +1202,42 @@ export default function App() {
                             ? "Iterando..."
                             : interactionLocked
                               ? "Esperando actualización del backend"
-                              : "Generar nueva iteración"}
+                              : "Generar iteración"}
                         </button>
                       </div>
                     </div>
 
-                    <div className="actionPanel logPanel">
-                      <div className="actionPanelTitle">Registro en tiempo real</div>
-                      <div className="logList">
-                        {eventLog.map((entry) => (
-                          <div key={entry.id} className={`logItem ${entry.tone}`}>
-                            <div className="logHeader">
-                              <span className="logTitle">{entry.title}</span>
-                              <span className="logTime">{entry.at}</span>
+                    {eventLog.length > 0 && (
+                      <details className="actionPanel logPanel">
+                        <summary className="actionPanelTitle">Últimos eventos</summary>
+                        <div className="logList">
+                          {eventLog.map((entry) => (
+                            <div key={entry.id} className={`logItem ${entry.tone}`}>
+                              <div className="logHeader">
+                                <span className="logTitle">{entry.title}</span>
+                                <span className="logTime">{entry.at}</span>
+                              </div>
+                              <div className="logDetail">{entry.detail}</div>
                             </div>
-                            <div className="logDetail">{entry.detail}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
+
+                    <details className="debugBox">
+                      <summary>Diagnóstico técnico</summary>
+                      <pre className="pre">
+                        {JSON.stringify(
+                          {
+                            endpoint: `${API_BASE}/notaria-v63-universal`,
+                            template_id: TEMPLATE_ID,
+                            case: result,
+                          },
+                          null,
+                          2,
+                        )}
+                      </pre>
+                    </details>
                   </div>
                 </div>
               </div>
