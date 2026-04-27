@@ -1324,13 +1324,10 @@ export default function App() {
             ) : (
               <div className="emptyResult">
                 <div className="emptyResultEyebrow">Panel del caso</div>
-                <div className="emptyResultTitle">
-                  Aquí aparecerán el radicado, las descargas, el flujo de mejora y el registro en vivo.
-                </div>
+                <div className="emptyResultTitle">Aquí aparecerá el caso activo.</div>
                 <div className="emptyResultText">
-                  Genera primero un borrador. Después podrás descargar artefactos,
-                  subir el Word revisado y validar nuevas iteraciones sin perder el
-                  contexto del mismo caso.
+                  Cuando generes el borrador verás aquí el radicado, las descargas,
+                  la mejora del sistema y el registro en tiempo real.
                 </div>
               </div>
             )}

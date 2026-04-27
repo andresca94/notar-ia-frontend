@@ -42,11 +42,11 @@ a {
   min-height: 100vh;
   display: grid;
   place-items: center;
-  padding: 32px 14px;
+  padding: 24px 12px;
 }
 
 .card {
-  width: min(1320px, 96vw);
+  width: min(1460px, 96vw);
   border-radius: 28px;
   padding: 24px;
   border: 1px solid rgba(43, 36, 31, 0.14);
@@ -76,6 +76,7 @@ a {
   align-items: flex-start;
   gap: 16px;
   margin-bottom: 16px;
+  flex-wrap: wrap;
 }
 
 .guideEyebrow {
@@ -221,9 +222,9 @@ a {
   gap: 18px;
 }
 
-@media (min-width: 1120px) {
+@media (min-width: 1180px) {
   .workspaceGrid {
-    grid-template-columns: minmax(420px, 0.92fr) minmax(520px, 1.08fr);
+    grid-template-columns: minmax(360px, 0.82fr) minmax(0, 1.18fr);
     align-items: start;
   }
 }
@@ -231,6 +232,12 @@ a {
 .workspaceColumn {
   display: grid;
   gap: 16px;
+  min-width: 0;
+}
+
+.inputColumn,
+.resultColumn {
+  min-width: 0;
 }
 
 .pickerGrid {
@@ -238,7 +245,7 @@ a {
   gap: 16px;
 }
 
-@media (min-width: 700px) {
+@media (min-width: 720px) {
   .pickerGrid {
     grid-template-columns: 1fr 1fr;
   }
@@ -248,6 +255,7 @@ a {
   width: 100%;
   cursor: pointer;
   transition: transform 0.15s ease;
+  min-width: 0;
 }
 
 .bigPicker:hover {
@@ -255,20 +263,20 @@ a {
 }
 
 .bigPickerInner {
-  min-height: 142px;
+  min-height: 120px;
   border: 3px solid rgba(43, 36, 31, 0.88);
   background: linear-gradient(180deg, #f7f2eb 0%, #dfd3c3 100%);
-  padding: 18px 16px;
+  padding: 16px 14px;
   border-radius: 20px;
   text-align: center;
   display: grid;
   align-content: center;
-  gap: 10px;
+  gap: 8px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.62);
 }
 
 .bigPickerText {
-  font-size: clamp(32px, 3vw, 42px);
+  font-size: clamp(24px, 2.4vw, 34px);
   line-height: 1.05;
 }
 
@@ -286,12 +294,7 @@ a {
 .filesColumns {
   display: grid;
   gap: 14px;
-}
-
-@media (min-width: 700px) {
-  .filesColumns {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .filesBox {
@@ -299,6 +302,7 @@ a {
   border: 1px solid rgba(43, 36, 31, 0.1);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.76);
+  min-width: 0;
 }
 
 .filesHeader {
@@ -312,23 +316,30 @@ a {
   padding: 0;
   display: grid;
   gap: 8px;
+  max-height: 224px;
+  overflow: auto;
+  padding-right: 2px;
 }
 
 .fileRow {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
-  align-items: center;
+  align-items: start;
   padding: 8px 10px;
   border: 1px solid rgba(43, 36, 31, 0.08);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.94);
+  min-width: 0;
 }
 
 .fileName {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
 }
 
 .field {
@@ -432,6 +443,7 @@ a {
   color: var(--accent);
   font-weight: 700;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .loadingCard {
@@ -541,6 +553,7 @@ a {
   border-radius: 20px;
   padding: 16px;
   background: rgba(255, 255, 255, 0.8);
+  min-width: 0;
 }
 
 .resultHeader {
@@ -549,6 +562,7 @@ a {
   align-items: flex-start;
   gap: 14px;
   margin-bottom: 14px;
+  flex-wrap: wrap;
 }
 
 .resultTitle {
@@ -569,11 +583,12 @@ a {
 .resultLayout {
   display: grid;
   gap: 16px;
+  min-width: 0;
 }
 
 @media (min-width: 1220px) {
   .resultLayout {
-    grid-template-columns: minmax(0, 0.95fr) minmax(320px, 0.85fr);
+    grid-template-columns: minmax(0, 1.05fr) minmax(300px, 0.95fr);
   }
 }
 
@@ -581,6 +596,7 @@ a {
 .resultActions {
   display: grid;
   gap: 14px;
+  min-width: 0;
 }
 
 .metaGrid {
@@ -711,6 +727,7 @@ a {
   border-radius: 18px;
   border: 1px solid rgba(43, 36, 31, 0.1);
   background: rgba(255, 255, 255, 0.92);
+  min-width: 0;
 }
 
 .actionPanel.accent {
@@ -748,7 +765,7 @@ a {
 }
 
 .logPanel {
-  min-height: 260px;
+  min-height: 220px;
 }
 
 .logList {
@@ -802,14 +819,15 @@ a {
 }
 
 .emptyResult {
-  min-height: 520px;
+  min-height: 360px;
   padding: 22px;
   border-radius: 22px;
   border: 1px dashed rgba(43, 36, 31, 0.18);
   background: rgba(255, 255, 255, 0.52);
   display: grid;
-  align-content: center;
+  align-content: start;
   gap: 12px;
+  min-width: 0;
 }
 
 .emptyResultEyebrow {
@@ -820,7 +838,7 @@ a {
 }
 
 .emptyResultTitle {
-  font-size: 24px;
+  font-size: clamp(22px, 2.3vw, 34px);
   font-weight: 800;
   line-height: 1.2;
 }
@@ -828,6 +846,47 @@ a {
 .emptyResultText {
   color: var(--muted);
   line-height: 1.6;
+}
+
+@media (max-width: 860px) {
+  .card {
+    border-radius: 22px;
+    padding: 18px;
+  }
+
+  .title {
+    font-size: clamp(34px, 8vw, 46px);
+    margin-bottom: 14px;
+  }
+
+  .guidePanel {
+    padding: 14px;
+  }
+
+  .guideTitle {
+    font-size: 22px;
+  }
+
+  .guideCard {
+    padding: 14px;
+  }
+
+  .bigPickerInner {
+    min-height: 108px;
+  }
+
+  .bigPickerText {
+    font-size: 26px;
+  }
+
+  .emptyResult {
+    min-height: 260px;
+    padding: 18px;
+  }
+
+  .resultTitle {
+    font-size: 22px;
+  }
 }
 
 code {
