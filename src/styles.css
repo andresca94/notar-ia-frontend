@@ -172,39 +172,48 @@ a {
   color: var(--muted);
 }
 
-.processStrip {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 10px;
+.phaseCard {
   margin: 0 0 18px;
+  padding: 16px 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(43, 36, 31, 0.12);
+  background: rgba(255, 255, 255, 0.82);
 }
 
-.processChip {
-  padding: 10px 12px;
-  border-radius: 16px;
-  border: 1px solid rgba(43, 36, 31, 0.1);
-  background: rgba(255, 255, 255, 0.72);
-  color: var(--muted);
-  text-align: center;
+.phaseCard.draft {
+  background: linear-gradient(135deg, rgba(40, 75, 99, 0.1), rgba(255, 255, 255, 0.96));
 }
 
-.processChip.active {
-  border-color: rgba(180, 68, 45, 0.3);
-  background: linear-gradient(135deg, rgba(180, 68, 45, 0.12), rgba(255, 255, 255, 0.95));
-  color: var(--accent-dark);
+.phaseCard.feedback {
+  background: linear-gradient(135deg, rgba(255, 240, 200, 0.7), rgba(255, 255, 255, 0.96));
 }
 
-.processChip.done {
-  border-color: rgba(40, 75, 99, 0.18);
-  background: rgba(223, 242, 216, 0.88);
-  color: #2f6430;
+.phaseCard.backend {
+  background: linear-gradient(135deg, rgba(180, 68, 45, 0.12), rgba(255, 255, 255, 0.96));
 }
 
-.processChipLabel {
+.phaseCard.validation {
+  background: linear-gradient(135deg, rgba(223, 242, 216, 0.88), rgba(255, 255, 255, 0.96));
+}
+
+.phaseEyebrow {
   font-size: 12px;
   font-weight: 800;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.phaseTitle {
+  font-size: 24px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.phaseText {
+  color: var(--muted);
+  line-height: 1.55;
 }
 
 .workspaceGrid {

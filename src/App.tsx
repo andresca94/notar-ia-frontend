@@ -23,6 +23,12 @@ const MAINTENANCE_MESSAGES = [
   "Esperando confirmación final del despliegue…",
 ] as const;
 
+const FEEDBACK_MESSAGES = [
+  "Subiendo el Word revisado…",
+  "Leyendo comentarios del documento…",
+  "Asociando el feedback al radicado activo…",
+] as const;
+
 const ITERATION_MESSAGES = [
   "Releyendo los insumos del caso…",
   "Aplicando el feedback al borrador…",
@@ -31,7 +37,7 @@ const ITERATION_MESSAGES = [
   "Preparando Word, PDF y reporte de cambios…",
 ] as const;
 
-type StatusMode = "idle" | "generation" | "maintenance" | "iteration";
+type StatusMode = "idle" | "generation" | "feedback" | "maintenance" | "iteration";
 type StatusState = "idle" | "loading" | "success" | "error";
 type WorkflowMode =
   | "start"
@@ -119,6 +125,12 @@ interface BannerInfo {
   tone: BannerTone;
   title: string;
   text: string;
+}
+
+interface ActivePhaseInfo {
+  label: string;
+  detail: string;
+  tone: "draft" | "feedback" | "backend" | "validation";
 }
 
 function createEventId(): string {
@@ -253,6 +265,11 @@ function getWorkflowBadge(mode: WorkflowMode): string {
 
 function getLoadingConfig(mode: StatusMode): { label: string; messages: readonly string[] } {
   switch (mode) {
+    case "feedback":
+      return {
+        label: "Registrando feedback",
+        messages: FEEDBACK_MESSAGES,
+      };
     case "maintenance":
       return {
         label: "Mejora del sistema en curso",
@@ -474,6 +491,59 @@ export default function App() {
     ? globalMaintenance?.message ||
       "El backend se está actualizando con feedback experto. Toda la interfaz queda bloqueada hasta que termine."
     : null;
+  const activePhase = useMemo<ActivePhaseInfo | null>(() => {
+    if (status.state === "loading") {
+      if (status.mode === "generation") {
+        return {
+          label: "Borrador",
+          detail: "Se está armando el borrador inicial de este caso.",
+          tone: "draft",
+        };
+      }
+      if (status.mode === "feedback") {
+        return {
+          label: "Feedback",
+          detail: "Se está leyendo y registrando el Word revisado de este mismo caso.",
+          tone: "feedback",
+        };
+      }
+      if (status.mode === "maintenance") {
+        return {
+          label: "Backend",
+          detail:
+            maintenance?.message ||
+            globalMaintenance?.message ||
+            "OpenClaw y Codex están evaluando y aplicando una mejora global del backend.",
+          tone: "backend",
+        };
+      }
+      if (status.mode === "iteration") {
+        return {
+          label: "Validación",
+          detail: "Se está generando una nueva iteración para validar la mejora aplicada.",
+          tone: "validation",
+        };
+      }
+    }
+
+    if (globalMaintenancePending) {
+      return {
+        label: "Backend",
+        detail:
+          globalMaintenance?.message ||
+          "Hay una actualización global del backend en curso. La interfaz seguirá bloqueada hasta que termine.",
+        tone: "backend",
+      };
+    }
+
+    return null;
+  }, [
+    globalMaintenance,
+    globalMaintenancePending,
+    maintenance?.message,
+    status.mode,
+    status.state,
+  ]);
 
   function appendLog(title: string, detail: string, tone: EventTone = "info") {
     setEventLog((current) => [
@@ -808,7 +878,11 @@ export default function App() {
 
     try {
       setIsUploadingFeedback(true);
-      setStatus({ state: "idle", msg: "", mode: "idle" });
+      setStatus({
+        state: "loading",
+        mode: "feedback",
+        msg: "Registrando el Word revisado para este radicado…",
+      });
 
       const form = new FormData();
       form.append("feedback_docx", feedbackFile);
@@ -882,33 +956,6 @@ export default function App() {
     }
   }
 
-  const processSteps = [
-    {
-      id: "draft",
-      label: "Borrador",
-      active: status.mode === "generation",
-      done: currentIteration >= 1,
-    },
-    {
-      id: "feedback",
-      label: "Feedback",
-      active: feedbackUploaded && !interactionLocked,
-      done: feedbackUploaded,
-    },
-    {
-      id: "backend",
-      label: "Backend",
-      active: interactionLocked,
-      done: maintenanceCompleted || maintenanceSkipped,
-    },
-    {
-      id: "validation",
-      label: "Validación",
-      active: status.mode === "iteration",
-      done: currentIteration > 1 && result?.status === "generated",
-    },
-  ];
-
   return (
     <div className="page">
       <div className="card">
@@ -945,16 +992,13 @@ export default function App() {
           </div>
         </div>
 
-        <div className="processStrip">
-          {processSteps.map((step) => (
-            <div
-              key={step.id}
-              className={`processChip ${step.active ? "active" : ""} ${step.done ? "done" : ""}`}
-            >
-              <span className="processChipLabel">{step.label}</span>
-            </div>
-          ))}
-        </div>
+        {activePhase && (
+          <div className={`phaseCard ${activePhase.tone}`}>
+            <div className="phaseEyebrow">Proceso actual</div>
+            <div className="phaseTitle">{activePhase.label}</div>
+            <div className="phaseText">{activePhase.detail}</div>
+          </div>
+        )}
 
         <div className="workspaceGrid">
           <section className="workspaceColumn inputColumn">
