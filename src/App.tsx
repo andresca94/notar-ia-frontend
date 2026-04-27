@@ -121,6 +121,14 @@ interface BannerInfo {
   text: string;
 }
 
+function createEventId(): string {
+  const maybeCrypto = globalThis.crypto as Crypto | undefined;
+  if (maybeCrypto && typeof maybeCrypto.randomUUID === "function") {
+    return maybeCrypto.randomUUID();
+  }
+  return `evt-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function resolveUrl(path?: string | null): string | null {
   if (!path) return null;
   if (path.startsWith("http://") || path.startsWith("https://")) {
@@ -399,7 +407,7 @@ export default function App() {
   const [isRunningNext, setIsRunningNext] = useState(false);
   const [eventLog, setEventLog] = useState<EventLogEntry[]>([
     {
-      id: crypto.randomUUID(),
+      id: createEventId(),
       at: formatClock(),
       title: "Interfaz lista",
       detail: "Sube documentos para generar un borrador o continuar con un caso existente.",
@@ -470,7 +478,7 @@ export default function App() {
   function appendLog(title: string, detail: string, tone: EventTone = "info") {
     setEventLog((current) => [
       {
-        id: crypto.randomUUID(),
+        id: createEventId(),
         at: formatClock(),
         title,
         detail,
