@@ -171,57 +171,14 @@ a {
   font-size: 14px;
 }
 
-.caseLoadBar {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid rgba(43, 36, 31, 0.08);
-}
-
-.caseLoadLabel {
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 8px;
-}
-
-.caseLoadControls {
-  display: grid;
-  gap: 8px;
-}
-
-@media (min-width: 640px) {
-  .caseLoadControls {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-}
-
-.caseLoadInput {
-  width: 100%;
-  min-height: 42px;
-  border-radius: 14px;
-  border: 1px solid rgba(43, 36, 31, 0.18);
-  padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.94);
-  color: var(--text);
-  outline: none;
-}
-
-.caseLoadInput:focus {
-  border-color: var(--accent);
-}
-
-.caseLoadBtn {
-  min-width: 128px;
-}
-
 .phaseCard {
   margin: 0 0 12px;
-  padding: 12px 14px;
+  padding: 10px 12px;
   border-radius: 18px;
   border: 1px solid rgba(43, 36, 31, 0.12);
   background: rgba(255, 255, 255, 0.82);
+  display: grid;
+  gap: 2px;
 }
 
 .phaseCard.draft {
@@ -250,15 +207,15 @@ a {
 }
 
 .phaseTitle {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 800;
-  margin-bottom: 4px;
+  margin-bottom: 0;
 }
 
 .phaseText {
   color: var(--muted);
   line-height: 1.45;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .workspaceGrid {
@@ -638,53 +595,30 @@ a {
   display: grid;
   gap: 12px;
   min-width: 0;
+  align-items: start;
 }
 
 @media (min-width: 1220px) {
   .resultLayout {
-    grid-template-columns: minmax(0, 1.05fr) minmax(300px, 0.95fr);
+    grid-template-columns: minmax(240px, 1.05fr) minmax(220px, 0.9fr) minmax(260px, 1fr);
   }
 }
 
-.resultSummary,
-.resultActions {
-  display: grid;
-  gap: 10px;
+.resultPanel {
   min-width: 0;
+  height: 100%;
 }
 
-.metaGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 8px;
-}
-
-.metaItem {
-  padding: 10px;
-  border: 1px solid rgba(43, 36, 31, 0.08);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.94);
-}
-
-.metaLabel {
-  display: block;
-  color: var(--muted);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.metaValue {
-  display: block;
-  margin-top: 4px;
-  font-weight: 800;
-  font-size: 14px;
+.resultPanelStatus .learningBanner {
+  height: 100%;
 }
 
 .learningBanner {
-  padding: 12px 14px;
+  padding: 14px 16px;
   border-radius: 16px;
   border: 1px solid rgba(43, 36, 31, 0.08);
+  display: grid;
+  align-content: start;
 }
 
 .learningBanner.pending {
@@ -706,7 +640,7 @@ a {
 .learningBannerTitle {
   font-size: 15px;
   font-weight: 800;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .learningBannerText {
@@ -715,75 +649,8 @@ a {
   font-size: 14px;
 }
 
-.historyBox {
-  padding: 12px 14px;
-  border-radius: 16px;
-  border: 1px solid rgba(43, 36, 31, 0.08);
-  background: rgba(255, 255, 255, 0.92);
-}
-
-.historyTitle {
-  font-weight: 800;
-  cursor: pointer;
-  margin: 0;
-  list-style: none;
-}
-
-.historyList {
-  display: grid;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.historyItem {
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: rgba(244, 236, 223, 0.72);
-  border: 1px solid rgba(43, 36, 31, 0.08);
-}
-
-.historyItem.current {
-  border-color: rgba(180, 68, 45, 0.3);
-  background: linear-gradient(135deg, rgba(180, 68, 45, 0.12), rgba(255, 255, 255, 0.95));
-}
-
-.historyIteration {
-  font-weight: 800;
-  margin-bottom: 4px;
-}
-
-.historyMeta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.debugBox {
-  border-top: 1px solid rgba(43, 36, 31, 0.08);
-  padding-top: 10px;
-}
-
-.debugBox summary {
-  cursor: pointer;
-  font-weight: 700;
-  color: var(--muted);
-  font-size: 14px;
-}
-
-.pre {
-  margin: 10px 0 0;
-  background: #111;
-  color: #fff;
-  padding: 10px 12px;
-  border-radius: 12px;
-  overflow: auto;
-  font-size: 12px;
-}
-
 .actionPanel {
-  padding: 12px;
+  padding: 12px 14px;
   border-radius: 16px;
   border: 1px solid rgba(43, 36, 31, 0.1);
   background: rgba(255, 255, 255, 0.92);
@@ -798,8 +665,6 @@ a {
   font-size: 15px;
   font-weight: 800;
   margin-bottom: 8px;
-  cursor: pointer;
-  list-style: none;
 }
 
 .actionGrid {

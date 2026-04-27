@@ -1110,85 +1110,83 @@ export default function App() {
                 </div>
 
                 <div className="resultLayout">
-                  <div className="resultSummary">
+                  <div className="resultPanel resultPanelStatus">
                     <div className={`learningBanner ${resultBanner.tone}`}>
                       <div className="learningBannerTitle">{resultBanner.title}</div>
                       <div className="learningBannerText">{resultBanner.text}</div>
                     </div>
                   </div>
 
-                  <div className="resultActions">
-                    <div className="actionPanel">
-                      <div className="actionPanelTitle">Descargas</div>
-                      <div className="actionGrid compact">
-                        {docxUrl && (
-                          <a className="downloadBtn" href={docxUrl} target="_blank" rel="noreferrer">
-                            Descargar Word
-                          </a>
-                        )}
-                        {pdfUrl && (
-                          <a className="downloadBtn" href={pdfUrl} target="_blank" rel="noreferrer">
-                            Descargar PDF
-                          </a>
-                        )}
-                        {changeReportUrl && (
-                          <a className="downloadBtn" href={changeReportUrl} target="_blank" rel="noreferrer">
-                            Descargar reporte de cambios
-                          </a>
-                        )}
-                        <button className="secondaryBtn" type="button" onClick={onDownloadDebug}>
-                          Descargar debug
-                        </button>
-                      </div>
+                  <div className="actionPanel resultPanel">
+                    <div className="actionPanelTitle">Descargas</div>
+                    <div className="actionGrid compact">
+                      {docxUrl && (
+                        <a className="downloadBtn" href={docxUrl} target="_blank" rel="noreferrer">
+                          Descargar Word
+                        </a>
+                      )}
+                      {pdfUrl && (
+                        <a className="downloadBtn" href={pdfUrl} target="_blank" rel="noreferrer">
+                          Descargar PDF
+                        </a>
+                      )}
+                      {changeReportUrl && (
+                        <a className="downloadBtn" href={changeReportUrl} target="_blank" rel="noreferrer">
+                          Descargar reporte de cambios
+                        </a>
+                      )}
+                      <button className="secondaryBtn" type="button" onClick={onDownloadDebug}>
+                        Descargar debug
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="actionPanel accent resultPanel">
+                    <div className="actionPanelTitle">Mejora del sistema</div>
+                    <div className="feedbackFileName">
+                      {feedbackFile
+                        ? `Archivo seleccionado: ${feedbackFile.name}`
+                        : feedbackUploaded
+                          ? maintenancePending
+                            ? "Feedback enviado. Esperando que termine la actualización del backend."
+                            : "Feedback cargado. Cuando quieras, genera otra iteración."
+                          : "Selecciona el Word revisado de este mismo caso."}
                     </div>
 
-                    <div className="actionPanel accent">
-                      <div className="actionPanelTitle">Mejora del sistema</div>
-                      <div className="feedbackFileName">
-                        {feedbackFile
-                          ? `Archivo seleccionado: ${feedbackFile.name}`
-                          : feedbackUploaded
-                            ? maintenancePending
-                              ? "Feedback enviado. Esperando que termine la actualización del backend."
-                              : "Feedback cargado. Cuando quieras, genera otra iteración."
-                            : "Selecciona el Word revisado de este mismo caso."}
-                      </div>
+                    <div className="actionGrid compact">
+                      <label className="secondaryBtn">
+                        <input
+                          key={`feedback-${pickerVersion}`}
+                          className="hiddenInput"
+                          type="file"
+                          accept=".docx"
+                          onChange={onPickFeedback}
+                          disabled={!canUploadFeedback || isUploadingFeedback || isRunningNext || interactionLocked}
+                        />
+                        Elegir Word
+                      </label>
 
-                      <div className="actionGrid compact">
-                        <label className="secondaryBtn">
-                          <input
-                            key={`feedback-${pickerVersion}`}
-                            className="hiddenInput"
-                            type="file"
-                            accept=".docx"
-                            onChange={onPickFeedback}
-                            disabled={!canUploadFeedback || isUploadingFeedback || isRunningNext || interactionLocked}
-                          />
-                          Elegir Word
-                        </label>
+                      <button
+                        className="secondaryBtn"
+                        type="button"
+                        disabled={!feedbackFile || isUploadingFeedback || isRunningNext || interactionLocked}
+                        onClick={onUploadFeedback}
+                      >
+                        {isUploadingFeedback ? "Enviando..." : "Enviar feedback"}
+                      </button>
 
-                        <button
-                          className="secondaryBtn"
-                          type="button"
-                          disabled={!feedbackFile || isUploadingFeedback || isRunningNext || interactionLocked}
-                          onClick={onUploadFeedback}
-                        >
-                          {isUploadingFeedback ? "Enviando..." : "Enviar feedback"}
-                        </button>
-
-                        <button
-                          className="primaryBtn compactBtn actionPrimary"
-                          type="button"
-                          disabled={!canRunNextIteration || isUploadingFeedback || isRunningNext}
-                          onClick={onNextIteration}
-                        >
-                          {isRunningNext
-                            ? "Iterando..."
-                            : interactionLocked
-                              ? "Esperando actualización del backend"
-                              : "Generar iteración"}
-                        </button>
-                      </div>
+                      <button
+                        className="primaryBtn compactBtn actionPrimary"
+                        type="button"
+                        disabled={!canRunNextIteration || isUploadingFeedback || isRunningNext}
+                        onClick={onNextIteration}
+                      >
+                        {isRunningNext
+                          ? "Iterando..."
+                          : interactionLocked
+                            ? "Esperando actualización del backend"
+                            : "Generar iteración"}
+                      </button>
                     </div>
                   </div>
                 </div>
