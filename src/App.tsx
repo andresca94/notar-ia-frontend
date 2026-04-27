@@ -377,6 +377,7 @@ export default function App() {
   const [docsFiles, setDocsFiles] = useState<File[]>([]);
   const [feedbackFile, setFeedbackFile] = useState<File | null>(null);
   const [pickerVersion, setPickerVersion] = useState(0);
+  const [caseLookup, setCaseLookup] = useState("");
 
   const [comentario, setComentario] = useState("");
   const [status, setStatus] = useState<StatusMessage>({
@@ -389,6 +390,7 @@ export default function App() {
   const [uploadPct, setUploadPct] = useState(0);
   const [isUploadingFeedback, setIsUploadingFeedback] = useState(false);
   const [isRunningNext, setIsRunningNext] = useState(false);
+  const [isLoadingCase, setIsLoadingCase] = useState(false);
   const [eventLog, setEventLog] = useState<EventLogEntry[]>([]);
 
   const lastStatusKeyRef = useRef("");
@@ -701,15 +703,73 @@ export default function App() {
     const hintedCase = extractCaseHintFromFilename(file?.name || "");
     if (file && result?.radicado && hintedCase && hintedCase !== String(result.radicado)) {
       setFeedbackFile(null);
+      setCaseLookup(hintedCase);
       setStatus({
         state: "error",
         mode: "idle",
-        msg: `Ese Word revisado parece pertenecer al radicado ${hintedCase}, no al caso actual ${result.radicado}.`,
+        msg: `Ese Word parece pertenecer al radicado ${hintedCase}. Carga ese caso para seguir con este archivo.`,
       });
       event.target.value = "";
       return;
     }
     setFeedbackFile(file);
+  }
+
+  async function onLoadCase() {
+    const target = caseLookup.trim();
+    if (!target) {
+      setStatus({
+        state: "error",
+        mode: "idle",
+        msg: "Escribe un radicado existente para cargarlo.",
+      });
+      return;
+    }
+
+    if (interactionLocked) {
+      setStatus({
+        state: "error",
+        mode: "idle",
+        msg: "El backend se está actualizando. Espera a que termine antes de abrir otro caso.",
+      });
+      return;
+    }
+
+    try {
+      setIsLoadingCase(true);
+      setStatus({
+        state: "loading",
+        mode: "idle",
+        msg: "Cargando caso existente…",
+      });
+
+      const response = await axios.get<CaseResponse>(
+        resolveUrl(`/cases/${encodeURIComponent(target)}`) as string,
+      );
+
+      setResult(response.data);
+      setCedulaFiles([]);
+      setDocsFiles([]);
+      setFeedbackFile(null);
+      setComentario("");
+      setUploadPct(0);
+      setElapsedSec(0);
+      setPickerVersion((value) => value + 1);
+      setCaseLookup(response.data.radicado);
+      setStatus({
+        state: "success",
+        mode: "idle",
+        msg: `Caso ${response.data.radicado} cargado.`,
+      });
+    } catch (err) {
+      setStatus({
+        state: "error",
+        mode: "idle",
+        msg: getErrorMessage(err, "No fue posible cargar ese radicado."),
+      });
+    } finally {
+      setIsLoadingCase(false);
+    }
   }
 
   function onResetCase() {
@@ -921,6 +981,29 @@ export default function App() {
             <div className="guideCard accent">
               <div className="guideCardTitle">Con feedback</div>
               <div className="guideText">Sube el Word revisado, espera el backend y luego genera otra iteración.</div>
+            </div>
+          </div>
+
+          <div className="caseLoadBar">
+            <div className="caseLoadLabel">Abrir caso existente</div>
+            <div className="caseLoadControls">
+              <input
+                className="caseLoadInput"
+                type="text"
+                inputMode="numeric"
+                placeholder="Ej: 25963"
+                value={caseLookup}
+                onChange={(event) => setCaseLookup(event.target.value)}
+                disabled={interactionLocked || isLoadingCase}
+              />
+              <button
+                className="secondaryBtn caseLoadBtn"
+                type="button"
+                onClick={onLoadCase}
+                disabled={interactionLocked || isLoadingCase}
+              >
+                {isLoadingCase ? "Cargando..." : "Abrir caso"}
+              </button>
             </div>
           </div>
         </div>

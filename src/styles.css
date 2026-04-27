@@ -171,6 +171,51 @@ a {
   font-size: 14px;
 }
 
+.caseLoadBar {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(43, 36, 31, 0.08);
+}
+
+.caseLoadLabel {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.caseLoadControls {
+  display: grid;
+  gap: 8px;
+}
+
+@media (min-width: 640px) {
+  .caseLoadControls {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+.caseLoadInput {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 14px;
+  border: 1px solid rgba(43, 36, 31, 0.18);
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--text);
+  outline: none;
+}
+
+.caseLoadInput:focus {
+  border-color: var(--accent);
+}
+
+.caseLoadBtn {
+  min-width: 128px;
+}
+
 .phaseCard {
   margin: 0 0 12px;
   padding: 12px 14px;
