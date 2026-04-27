@@ -377,7 +377,6 @@ export default function App() {
   const [docsFiles, setDocsFiles] = useState<File[]>([]);
   const [feedbackFile, setFeedbackFile] = useState<File | null>(null);
   const [pickerVersion, setPickerVersion] = useState(0);
-  const [caseLookup, setCaseLookup] = useState("");
 
   const [comentario, setComentario] = useState("");
   const [status, setStatus] = useState<StatusMessage>({
@@ -390,7 +389,6 @@ export default function App() {
   const [uploadPct, setUploadPct] = useState(0);
   const [isUploadingFeedback, setIsUploadingFeedback] = useState(false);
   const [isRunningNext, setIsRunningNext] = useState(false);
-  const [isLoadingCase, setIsLoadingCase] = useState(false);
   const [eventLog, setEventLog] = useState<EventLogEntry[]>([]);
 
   const lastStatusKeyRef = useRef("");
@@ -496,6 +494,29 @@ export default function App() {
     status.mode,
     status.state,
   ]);
+
+  function onDownloadDebug() {
+    if (!result) return;
+    const payload = {
+      exported_at: new Date().toISOString(),
+      endpoint: `${API_BASE}/notaria-v63-universal`,
+      template_id: TEMPLATE_ID,
+      global_maintenance: globalMaintenance,
+      case: result,
+      recent_events: eventLog,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `debug_caso_${result.radicado}_iteracion_${result.current_iteration}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
 
   function appendLog(title: string, detail: string, tone: EventTone = "info") {
     setEventLog((current) => [
@@ -703,7 +724,6 @@ export default function App() {
     const hintedCase = extractCaseHintFromFilename(file?.name || "");
     if (file && result?.radicado && hintedCase && hintedCase !== String(result.radicado)) {
       setFeedbackFile(null);
-      setCaseLookup(hintedCase);
       setStatus({
         state: "error",
         mode: "idle",
@@ -713,63 +733,6 @@ export default function App() {
       return;
     }
     setFeedbackFile(file);
-  }
-
-  async function onLoadCase() {
-    const target = caseLookup.trim();
-    if (!target) {
-      setStatus({
-        state: "error",
-        mode: "idle",
-        msg: "Escribe un radicado existente para cargarlo.",
-      });
-      return;
-    }
-
-    if (interactionLocked) {
-      setStatus({
-        state: "error",
-        mode: "idle",
-        msg: "El backend se está actualizando. Espera a que termine antes de abrir otro caso.",
-      });
-      return;
-    }
-
-    try {
-      setIsLoadingCase(true);
-      setStatus({
-        state: "loading",
-        mode: "idle",
-        msg: "Cargando caso existente…",
-      });
-
-      const response = await axios.get<CaseResponse>(
-        resolveUrl(`/cases/${encodeURIComponent(target)}`) as string,
-      );
-
-      setResult(response.data);
-      setCedulaFiles([]);
-      setDocsFiles([]);
-      setFeedbackFile(null);
-      setComentario("");
-      setUploadPct(0);
-      setElapsedSec(0);
-      setPickerVersion((value) => value + 1);
-      setCaseLookup(response.data.radicado);
-      setStatus({
-        state: "success",
-        mode: "idle",
-        msg: `Caso ${response.data.radicado} cargado.`,
-      });
-    } catch (err) {
-      setStatus({
-        state: "error",
-        mode: "idle",
-        msg: getErrorMessage(err, "No fue posible cargar ese radicado."),
-      });
-    } finally {
-      setIsLoadingCase(false);
-    }
   }
 
   function onResetCase() {
@@ -984,28 +947,6 @@ export default function App() {
             </div>
           </div>
 
-          <div className="caseLoadBar">
-            <div className="caseLoadLabel">Abrir caso existente</div>
-            <div className="caseLoadControls">
-              <input
-                className="caseLoadInput"
-                type="text"
-                inputMode="numeric"
-                placeholder="Ej: 25963"
-                value={caseLookup}
-                onChange={(event) => setCaseLookup(event.target.value)}
-                disabled={interactionLocked || isLoadingCase}
-              />
-              <button
-                className="secondaryBtn caseLoadBtn"
-                type="button"
-                onClick={onLoadCase}
-                disabled={interactionLocked || isLoadingCase}
-              >
-                {isLoadingCase ? "Cargando..." : "Abrir caso"}
-              </button>
-            </div>
-          </div>
         </div>
 
         {activePhase && (
@@ -1170,53 +1111,10 @@ export default function App() {
 
                 <div className="resultLayout">
                   <div className="resultSummary">
-                    <div className="metaGrid">
-                      <div className="metaItem">
-                        <span className="metaLabel">Estado</span>
-                        <span className="metaValue">{result.status}</span>
-                      </div>
-                      <div className="metaItem">
-                        <span className="metaLabel">Feedback</span>
-                        <span className="metaValue">
-                          {feedbackUploaded
-                            ? `${result.feedback?.comments_count || 0} comentario(s)`
-                            : "Pendiente"}
-                        </span>
-                      </div>
-                      {(interactionLocked || status.state === "loading") && (
-                        <div className="metaItem">
-                          <span className="metaLabel">Tiempo</span>
-                          <span className="metaValue">{formatDuration(liveElapsedSec)}</span>
-                        </div>
-                      )}
-                    </div>
-
                     <div className={`learningBanner ${resultBanner.tone}`}>
                       <div className="learningBannerTitle">{resultBanner.title}</div>
                       <div className="learningBannerText">{resultBanner.text}</div>
                     </div>
-
-                    <details className="historyBox">
-                      <summary className="historyTitle">Historial de iteraciones</summary>
-                      <div className="historyList">
-                        {result.iterations.map((item) => (
-                          <div
-                            key={item.iteration}
-                            className={`historyItem ${item.iteration === currentIteration ? "current" : ""}`}
-                          >
-                            <div className="historyIteration">Iteración {item.iteration}</div>
-                            <div className="historyMeta">
-                              <span>{item.status}</span>
-                              <span>
-                                {item.feedback_uploaded
-                                  ? `${item.comments_count} comentario(s)`
-                                  : "Sin feedback"}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </details>
                   </div>
 
                   <div className="resultActions">
@@ -1238,6 +1136,9 @@ export default function App() {
                             Descargar reporte de cambios
                           </a>
                         )}
+                        <button className="secondaryBtn" type="button" onClick={onDownloadDebug}>
+                          Descargar debug
+                        </button>
                       </div>
                     </div>
 
@@ -1289,38 +1190,6 @@ export default function App() {
                         </button>
                       </div>
                     </div>
-
-                    {eventLog.length > 0 && (
-                      <details className="actionPanel logPanel">
-                        <summary className="actionPanelTitle">Últimos eventos</summary>
-                        <div className="logList">
-                          {eventLog.map((entry) => (
-                            <div key={entry.id} className={`logItem ${entry.tone}`}>
-                              <div className="logHeader">
-                                <span className="logTitle">{entry.title}</span>
-                                <span className="logTime">{entry.at}</span>
-                              </div>
-                              <div className="logDetail">{entry.detail}</div>
-                            </div>
-                          ))}
-                        </div>
-                      </details>
-                    )}
-
-                    <details className="debugBox">
-                      <summary>Diagnóstico técnico</summary>
-                      <pre className="pre">
-                        {JSON.stringify(
-                          {
-                            endpoint: `${API_BASE}/notaria-v63-universal`,
-                            template_id: TEMPLATE_ID,
-                            case: result,
-                          },
-                          null,
-                          2,
-                        )}
-                      </pre>
-                    </details>
                   </div>
                 </div>
               </div>
