@@ -757,8 +757,8 @@ a {
   align-content: start;
   gap: 8px;
   min-width: 0;
-  width: min(100%, 680px);
-  justify-self: start;
+  width: min(100%, 760px);
+  justify-self: center;
 }
 
 .emptyResultEyebrow {
