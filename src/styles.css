@@ -436,6 +436,13 @@ a {
   transform: none;
 }
 
+.secondaryBtn.disabledAction {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+  transform: none;
+}
+
 .downloadBtn {
   display: inline-flex;
   align-items: center;

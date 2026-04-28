@@ -375,6 +375,10 @@ export default function App() {
 
   const canSubmit = useMemo(() => docsFiles.length > 0, [docsFiles]);
   const currentIteration = result?.current_iteration || 0;
+  const currentIterationSummary =
+    result?.iterations?.find((item) => item.iteration === currentIteration) || null;
+  const currentIterationStatus = currentIterationSummary?.status || result?.status || null;
+  const currentIterationGenerated = currentIterationStatus === "generated";
   const feedbackUploaded = Boolean(result?.feedback?.uploaded);
   const canUploadFeedback = Boolean(result?.actions?.feedback_upload_url);
   const maintenance = result?.maintenance || null;
@@ -390,6 +394,10 @@ export default function App() {
     ["queued", "running"].includes(globalMaintenanceStatus)
   );
   const interactionLocked = maintenancePending || globalMaintenancePending;
+  const canPickFeedback = Boolean(
+    canUploadFeedback && currentIterationGenerated && !isUploadingFeedback && !isRunningNext && !interactionLocked
+  );
+  const canSubmitFeedback = Boolean(feedbackFile && canPickFeedback);
   const canRunNextIteration = Boolean(
     result?.actions?.next_iteration_url && feedbackUploaded && !interactionLocked
   );
@@ -417,6 +425,7 @@ export default function App() {
   const docxUrl = resolveUrl(result?.artifacts?.docx_url);
   const pdfUrl = resolveUrl(result?.artifacts?.pdf_url);
   const changeReportUrl = resolveUrl(result?.artifacts?.change_report_url);
+  const showDraftDownloads = Boolean(currentIterationGenerated);
   const showChangeReport = Boolean(changeReportUrl && !interactionLocked);
   const activePhase = useMemo<ActivePhaseInfo | null>(() => {
     if (status.state === "loading") {
@@ -1073,12 +1082,12 @@ export default function App() {
                   <div className="actionPanel resultPanel">
                     <div className="actionPanelTitle">Descargas</div>
                     <div className="actionGrid compact">
-                      {docxUrl && (
+                      {showDraftDownloads && docxUrl && (
                         <a className="downloadBtn" href={docxUrl} target="_blank" rel="noreferrer">
                           Descargar Word
                         </a>
                       )}
-                      {pdfUrl && (
+                      {showDraftDownloads && pdfUrl && (
                         <a className="downloadBtn" href={pdfUrl} target="_blank" rel="noreferrer">
                           Descargar PDF
                         </a>
@@ -1099,6 +1108,8 @@ export default function App() {
                     <div className="feedbackFileName">
                       {feedbackFile
                         ? `Archivo seleccionado: ${feedbackFile.name}`
+                        : !currentIterationGenerated
+                          ? "Primero genera la siguiente iteración para habilitar nuevas descargas y otro ciclo de feedback."
                         : feedbackUploaded
                           ? maintenancePending
                             ? "Feedback enviado. Esperando que termine la actualización del backend."
@@ -1107,14 +1118,14 @@ export default function App() {
                     </div>
 
                     <div className="actionGrid compact">
-                      <label className="secondaryBtn">
+                      <label className={`secondaryBtn ${canPickFeedback ? "" : "disabledAction"}`}>
                         <input
                           key={`feedback-${pickerVersion}`}
                           className="hiddenInput"
                           type="file"
                           accept=".docx"
                           onChange={onPickFeedback}
-                          disabled={!canUploadFeedback || isUploadingFeedback || isRunningNext || interactionLocked}
+                          disabled={!canPickFeedback}
                         />
                         Elegir Word
                       </label>
@@ -1122,7 +1133,7 @@ export default function App() {
                       <button
                         className="secondaryBtn"
                         type="button"
-                        disabled={!feedbackFile || isUploadingFeedback || isRunningNext || interactionLocked}
+                        disabled={!canSubmitFeedback}
                         onClick={onUploadFeedback}
                       >
                         {isUploadingFeedback ? "Enviando..." : "Enviar feedback"}
