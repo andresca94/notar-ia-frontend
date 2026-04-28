@@ -158,23 +158,6 @@ function formatClock(date = new Date()): string {
   }).format(date);
 }
 
-function parseUtcToMs(value?: string | null): number | null {
-  if (!value) return null;
-  const parsed = Date.parse(value);
-  return Number.isNaN(parsed) ? null : parsed;
-}
-
-function formatDuration(seconds: number): string {
-  const safe = Math.max(0, seconds);
-  const hours = Math.floor(safe / 3600);
-  const minutes = Math.floor((safe % 3600) / 60);
-  const secs = safe % 60;
-  if (hours > 0) {
-    return `${hours}h ${String(minutes).padStart(2, "0")}m ${String(secs).padStart(2, "0")}s`;
-  }
-  return `${minutes}m ${String(secs).padStart(2, "0")}s`;
-}
-
 function describeIteration(iteration: number): string {
   if (iteration <= 1) {
     return "Esta es la primera versión de este radicado.";
@@ -339,31 +322,19 @@ function getResultBanner(params: {
 
 function LoadingCard(props: {
   mode: StatusMode;
-  elapsedSec: number;
   uploadPct: number;
 }) {
-  const { mode, elapsedSec, uploadPct } = props;
+  const { mode, uploadPct } = props;
   const { label, detail } = getLoadingConfig(mode, uploadPct);
-  const showUploadProgress = mode === "generation" && uploadPct > 0 && uploadPct < 100;
 
   return (
     <div className="loadingCard">
       <div className="loadingLabel">{label}</div>
 
-      {showUploadProgress && (
-        <div className="progressWrap">
-          <div className="progressBar">
-            <div className="progressFill" style={{ width: `${uploadPct}%` }} />
-          </div>
-          <div className="progressText">{uploadPct}%</div>
-        </div>
-      )}
-
       <div className="spinnerWrap">
         <div className="spinner" />
         <div className="spinnerCopy">
           <div className="spinnerText">{detail}</div>
-          <div className="spinnerMeta">{formatDuration(elapsedSec)} transcurridos</div>
         </div>
       </div>
     </div>
@@ -371,8 +342,6 @@ function LoadingCard(props: {
 }
 
 export default function App() {
-  const [elapsedSec, setElapsedSec] = useState(0);
-
   const [cedulaFiles, setCedulaFiles] = useState<File[]>([]);
   const [docsFiles, setDocsFiles] = useState<File[]>([]);
   const [feedbackFile, setFeedbackFile] = useState<File | null>(null);
@@ -434,15 +403,6 @@ export default function App() {
     currentIteration,
   });
 
-  const activeMaintenance = maintenancePending ? maintenance : globalMaintenancePending ? globalMaintenance : null;
-  const activeMaintenanceSince =
-    parseUtcToMs(activeMaintenance?.started_at) ??
-    parseUtcToMs(activeMaintenance?.queued_at) ??
-    null;
-  const liveElapsedSec =
-    activeMaintenanceSince !== null
-      ? Math.max(0, Math.floor((Date.now() - activeMaintenanceSince) / 1000))
-      : elapsedSec;
   const docxUrl = resolveUrl(result?.artifacts?.docx_url);
   const pdfUrl = resolveUrl(result?.artifacts?.pdf_url);
   const changeReportUrl = resolveUrl(result?.artifacts?.change_report_url);
@@ -530,22 +490,6 @@ export default function App() {
       ...current,
     ].slice(0, 4));
   }
-
-  useEffect(() => {
-    if (status.state !== "loading") {
-      setElapsedSec(0);
-      return;
-    }
-
-    const startedAt = Date.now();
-    const secTimer = window.setInterval(() => {
-      setElapsedSec(Math.floor((Date.now() - startedAt) / 1000));
-    }, 1000);
-
-    return () => {
-      window.clearInterval(secTimer);
-    };
-  }, [status.mode, status.state]);
 
   useEffect(() => {
     if (!status.msg || status.state === "loading") return;
@@ -743,7 +687,6 @@ export default function App() {
     setStatus({ state: "idle", msg: "", mode: "idle" });
     setResult(null);
     setUploadPct(0);
-    setElapsedSec(0);
     setPickerVersion((value) => value + 1);
     setEventLog([]);
   }
@@ -760,7 +703,6 @@ export default function App() {
     setResult(null);
     setFeedbackFile(null);
     setUploadPct(0);
-    setElapsedSec(0);
 
     if (!canSubmit) {
       setStatus({
@@ -1073,7 +1015,6 @@ export default function App() {
             {status.state === "loading" && (
               <LoadingCard
                 mode={status.mode}
-                elapsedSec={liveElapsedSec}
                 uploadPct={uploadPct}
               />
             )}

@@ -469,29 +469,6 @@ a {
   margin-bottom: 8px;
 }
 
-.progressWrap {
-  margin-bottom: 12px;
-}
-
-.progressBar {
-  height: 10px;
-  border-radius: 999px;
-  background: rgba(40, 75, 99, 0.14);
-  overflow: hidden;
-}
-
-.progressFill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--support), var(--accent));
-}
-
-.progressText {
-  margin-top: 6px;
-  font-size: 13px;
-  color: var(--muted);
-  text-align: right;
-}
-
 .spinnerWrap {
   display: flex;
   align-items: center;
@@ -515,11 +492,6 @@ a {
 .spinnerText {
   font-weight: 800;
   font-size: 14px;
-}
-
-.spinnerMeta {
-  color: var(--muted);
-  font-size: 12px;
 }
 
 .status {
