@@ -8,6 +8,7 @@ type StatusMode = "idle" | "generation" | "feedback" | "maintenance" | "iteratio
 type StatusState = "idle" | "loading" | "success" | "error";
 type WorkflowMode =
   | "start"
+  | "processing"
   | "drafted"
   | "feedback"
   | "locked"
@@ -173,6 +174,8 @@ function getWorkflowMode(params: {
   feedbackUploaded: boolean;
   hasResult: boolean;
   resultStatus?: string;
+  statusState: StatusState;
+  statusMode: StatusMode;
 }): WorkflowMode {
   const {
     interactionLocked,
@@ -182,8 +185,11 @@ function getWorkflowMode(params: {
     feedbackUploaded,
     hasResult,
     resultStatus,
+    statusState,
+    statusMode,
   } = params;
 
+  if (statusState === "loading" && statusMode === "generation") return "processing";
   if (interactionLocked) return "locked";
   if (maintenanceFailed) return "attention";
   if (maintenanceCompleted) return "validation";
@@ -196,6 +202,8 @@ function getWorkflowMode(params: {
 
 function getWorkflowBadge(mode: WorkflowMode): string {
   switch (mode) {
+    case "processing":
+      return "Generando borrador";
     case "locked":
       return "Backend actualizándose";
     case "validation":
@@ -329,6 +337,7 @@ function LoadingCard(props: {
 
   return (
     <div className="loadingCard">
+      <div className="phaseEyebrow">Proceso actual</div>
       <div className="loadingLabel">{label}</div>
 
       <div className="spinnerWrap">
@@ -392,6 +401,8 @@ export default function App() {
     feedbackUploaded,
     hasResult: Boolean(result),
     resultStatus: result?.status,
+    statusState: status.state,
+    statusMode: status.mode,
   });
   const resultBanner = getResultBanner({
     maintenancePending,
@@ -406,6 +417,7 @@ export default function App() {
   const docxUrl = resolveUrl(result?.artifacts?.docx_url);
   const pdfUrl = resolveUrl(result?.artifacts?.pdf_url);
   const changeReportUrl = resolveUrl(result?.artifacts?.change_report_url);
+  const showChangeReport = Boolean(changeReportUrl && !interactionLocked);
   const activePhase = useMemo<ActivePhaseInfo | null>(() => {
     if (status.state === "loading") {
       if (status.mode === "generation") {
@@ -891,7 +903,7 @@ export default function App() {
 
         </div>
 
-        {activePhase && (
+        {status.state !== "loading" && activePhase && (
           <div className={`phaseCard ${activePhase.tone}`}>
             <div className="phaseEyebrow">Proceso actual</div>
             <div className="phaseTitle">{activePhase.label}</div>
@@ -1019,7 +1031,7 @@ export default function App() {
               />
             )}
 
-            {status.state !== "idle" && (
+            {status.state !== "idle" && status.state !== "loading" && (
               <div className={`status ${status.state}`}>{status.msg}</div>
             )}
 
@@ -1071,7 +1083,7 @@ export default function App() {
                           Descargar PDF
                         </a>
                       )}
-                      {changeReportUrl && (
+                      {showChangeReport && (
                         <a className="downloadBtn" href={changeReportUrl} target="_blank" rel="noreferrer">
                           Descargar reporte de cambios
                         </a>

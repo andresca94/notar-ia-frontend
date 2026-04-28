@@ -107,6 +107,11 @@ a {
   color: var(--support);
 }
 
+.guideBadge.processing {
+  background: var(--support-soft);
+  color: var(--support);
+}
+
 .guideBadge.drafted {
   background: var(--warning-soft);
   color: #7b5300;
@@ -455,18 +460,17 @@ a {
 
 .loadingCard {
   padding: 12px 14px;
-  border-radius: 16px;
-  background: rgba(40, 75, 99, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.82);
   border: 1px solid rgba(40, 75, 99, 0.12);
+  display: grid;
+  gap: 4px;
 }
 
 .loadingLabel {
-  font-size: 11px;
+  font-size: 16px;
   font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--support);
-  margin-bottom: 8px;
+  color: var(--text);
 }
 
 .spinnerWrap {
@@ -492,6 +496,7 @@ a {
 .spinnerText {
   font-weight: 800;
   font-size: 14px;
+  line-height: 1.45;
 }
 
 .status {
