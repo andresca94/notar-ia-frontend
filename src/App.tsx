@@ -190,6 +190,7 @@ function getWorkflowMode(params: {
   } = params;
 
   if (statusState === "loading" && statusMode === "generation") return "processing";
+  if (statusState === "loading" && statusMode === "iteration") return "iterating";
   if (interactionLocked) return "locked";
   if (maintenanceFailed) return "attention";
   if (maintenanceCompleted) return "validation";
