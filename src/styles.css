@@ -571,6 +571,30 @@ a {
   font-size: 14px;
 }
 
+.resultMeta {
+  margin-top: 8px;
+  display: grid;
+  gap: 4px;
+}
+
+.resultMetaRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.resultMetaLabel {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.resultMetaValue {
+  color: var(--text);
+  word-break: break-word;
+}
+
 .resultResetBtn {
   white-space: nowrap;
 }

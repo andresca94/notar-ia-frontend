@@ -46,12 +46,19 @@ interface MaintenanceInfo {
   iteration?: number | null;
 }
 
+interface TemplateUsage {
+  acto_nombre: string;
+  rag_query?: string | null;
+  template_file?: string | null;
+}
+
 interface IterationSummary {
   iteration: number;
   status: string;
   comments_count: number;
   feedback_uploaded: boolean;
   maintenance_status?: string | null;
+  templates_used?: TemplateUsage[];
   artifacts: ArtifactLinks;
 }
 
@@ -64,6 +71,8 @@ interface CaseResponse {
   actions: ActionLinks;
   feedback: FeedbackStatus;
   maintenance?: MaintenanceInfo | null;
+  template_id?: string | null;
+  templates_used?: TemplateUsage[];
   iterations: IterationSummary[];
   docx_path?: string;
   pdf_path?: string;
@@ -164,6 +173,11 @@ function describeIteration(iteration: number): string {
     return "Esta es la primera versión de este radicado.";
   }
   return `Esta es la iteración ${iteration} del mismo radicado. Usa Empezar otro caso si quieres reiniciar la prueba desde cero.`;
+}
+
+function formatTemplateLabel(value?: string | null): string {
+  const normalized = (value || "").trim();
+  return normalized || "Sin plantilla detectada";
 }
 
 function getWorkflowMode(params: {
@@ -381,6 +395,7 @@ export default function App() {
   const currentIterationStatus = currentIterationSummary?.status || result?.status || null;
   const currentIterationGenerated = currentIterationStatus === "generated";
   const feedbackUploaded = Boolean(result?.feedback?.uploaded);
+  const templatesUsed = result?.templates_used || [];
   const canUploadFeedback = Boolean(result?.actions?.feedback_upload_url);
   const maintenance = result?.maintenance || null;
   const maintenanceStatus = maintenance?.status || null;
@@ -1061,6 +1076,32 @@ export default function App() {
                       Caso {result.radicado} · Iteración {result.current_iteration}
                     </div>
                     <div className="resultSubtitle">{describeIteration(currentIteration)}</div>
+                    {(templatesUsed.length > 0 || result.template_id) && (
+                      <div className="resultMeta">
+                        {templatesUsed.length > 0 ? (
+                          templatesUsed.map((item, index) => (
+                            <div
+                              key={`${item.acto_nombre}-${item.template_file}-${index}`}
+                              className="resultMetaRow"
+                            >
+                              <span className="resultMetaLabel">
+                                {item.acto_nombre || `Acto ${index + 1}`}:
+                              </span>
+                              <span className="resultMetaValue">
+                                {formatTemplateLabel(item.template_file)}
+                              </span>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="resultMetaRow">
+                            <span className="resultMetaLabel">Template base:</span>
+                            <span className="resultMetaValue">
+                              {formatTemplateLabel(result.template_id)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <button
                     className="secondaryBtn resultResetBtn"
